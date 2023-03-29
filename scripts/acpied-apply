@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+set -e
+
+[[ -z "$1" ]] && exit 0
+
+dsl_files=$(tr "," " " <<< "$1")
+workspace="/tmp/acpidump"
+acpi_dir="$workspace/kernel/firmware/acpi"
+modified_dir="$workspace/modified"
+
+[[ -d "$acpi_dir" ]] && rm -rf "$acpi_dir"
+mkdir -p "$acpi_dir"
+
+cd "$modified_dir"
+for dsl_file in $dsl_files; do
+        iasl -sa "$dsl_file" &> /dev/null
+        aml_file=${dsl_file/.dsl/.aml}
+        cp "$aml_file" "$acpi_dir"
+done
+
+cd "$workspace"
+timestamp=$(date +%Y%m%d%H%M%S)
+instrumented_initrd="/boot/instrumented_initrd_$timestamp"
+find kernel | cpio -H newc --create > "$instrumented_initrd"
+
+origin_initrd=$(grubby --info="$(grubby --default-kernel)" | grep initrd | awk -F= '{print $2}')
+echo "original initrd: $origin_initrd"
+origin_initrd=$(tr -d \" <<< "$origin_initrd")
+origin_initrd=$(awk '{print $1}' <<< "$origin_initrd")
+cat "$origin_initrd" >> "$instrumented_initrd"
+
+# update initrd for default kernel
+if grubby --update-kernel="$(grubby --default-kernel)" --initrd="$instrumented_initrd"; then
+  echo "successfully set initrd: $instrumented_initrd"
+fi

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+workspace="/tmp/acpidump"
+origin_dir="$workspace/origin"
+modified_dir="$workspace/modified"
+
+[[ -d $workspace ]] && rm -rf $workspace
+mkdir -p "$origin_dir"
+mkdir -p "$modified_dir"
+cd $workspace || exit 1
+acpidump > raw
+cd "$origin_dir" || exit 1
+acpixtract -a ../raw
+iasl -d *.dat
+cd "$modified_dir" || exit 1
+find "$origin_dir" -name "*.dsl" -exec cp {} . \;
